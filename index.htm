@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Silly Sod: Public Nuisance 3D</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js 3D Engine -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Comic+Neue:wght@700&family=Nunito:wght@400;800;900&display=swap');
+        
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #0f172a;
+            font-family: 'Nunito', sans-serif;
+            user-select: none;
+            touch-action: none;
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        .comic-font { font-family: 'Comic Neue', cursive; }
+
+        .ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .pointer-events-auto { pointer-events: auto; }
+
+        /* Progress bars */
+        progress::-webkit-progress-bar { background-color: rgba(229, 231, 235, 0.8); border-radius: 9999px; }
+        progress::-webkit-progress-value { border-radius: 9999px; transition: width 0.15s ease; }
+        #shame-bar::-webkit-progress-value { background: linear-gradient(90deg, #f87171, #dc2626); }
+        #cringe-bar::-webkit-progress-value { background: linear-gradient(90deg, #c084fc, #9333ea); }
+        
+        progress::-moz-progress-bar { border-radius: 9999px; transition: width 0.15s ease; }
+        #shame-bar::-moz-progress-bar { background: linear-gradient(90deg, #f87171, #dc2626); }
+        #cringe-bar::-moz-progress-bar { background: linear-gradient(90deg, #c084fc, #9333ea); }
+
+        .btn {
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+        .btn:active {
+            transform: translateY(3px);
+            box-shadow: none !important;
+        }
+
+        .floating-badge {
+            animation: bounce 0.6s infinite alternate cubic-bezier(0.5, 0.05, 1, 0.5);
+        }
+
+        @keyframes bounce {
+            from { transform: translateY(0); }
+            to { transform: translateY(-8px); }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 3D Canvas Container -->
+    <div id="canvas-container"></div>
+
+    <!-- HUD Layer -->
+    <div id="game-ui" class="ui-layer hidden flex flex-col justify-between p-4 sm:p-6">
+        <!-- Top Bar -->
+        <div class="flex justify-between items-start gap-4">
+            <!-- Cringe Score -->
+            <div class="bg-slate-900/80 backdrop-blur-md p-4 rounded-2xl border-2 border-purple-500/50 text-white shadow-xl w-48 sm:w-60">
+                <div class="flex justify-between items-center mb-1">
+                    <h2 class="comic-font text-purple-400 text-2xl font-black">CRINGE</h2>
+                    <span id="multiplier-badge" class="hidden bg-purple-600 text-xs font-black px-2 py-0.5 rounded-full text-yellow-300 floating-badge">x2 MULTI!</span>
+                </div>
+                <div class="text-xs text-slate-300 mb-1 flex justify-between">
+                    <span>Score:</span>
+                    <span id="score-display" class="font-black text-xl text-yellow-400">0</span>
+                </div>
+                <progress id="cringe-bar" value="0" max="100" class="w-full h-3 rounded-full"></progress>
+                <div class="text-xs text-purple-300 mt-1 font-bold italic truncate" id="cringe-status">Inconspicuous...</div>
+            </div>
+
+            <!-- Shame Gauge -->
+            <div class="bg-slate-900/80 backdrop-blur-md p-4 rounded-2xl border-2 border-red-500/50 text-white shadow-xl w-48 sm:w-60">
+                <h2 class="comic-font text-red-400 text-2xl font-black mb-1">SHAME</h2>
+                <progress id="shame-bar" value="0" max="100" class="w-full h-3 rounded-full"></progress>
+                <div class="text-xs text-red-300 mt-1 font-bold italic truncate" id="shame-status">Nobody is watching</div>
+            </div>
+        </div>
+
+        <!-- On-Screen Controls Hint & Quick Action Touch Buttons -->
+        <div class="self-center flex flex-col items-center gap-3 mb-2 w-full max-w-xl">
+            <!-- On-Screen Action Buttons for Touch / Mouse -->
+            <div class="flex gap-2 justify-center w-full pointer-events-auto">
+                <button id="btn-confetti" class="btn bg-purple-600 hover:bg-purple-500 active:bg-purple-700 text-white font-bold py-2 px-4 rounded-xl text-xs sm:text-sm shadow-md border border-purple-400/30 flex-1">
+                    🎉 Confetti [SPACE]
+                </button>
+                <button id="btn-flop" class="btn bg-orange-600 hover:bg-orange-500 active:bg-orange-700 text-white font-bold py-2 px-4 rounded-xl text-xs sm:text-sm shadow-md border border-orange-400/30 flex-1">
+                    🥔 Flop [SHIFT]
+                </button>
+                <button id="btn-squeak" class="btn bg-pink-600 hover:bg-pink-500 active:bg-pink-700 text-white font-bold py-2 px-4 rounded-xl text-xs sm:text-sm shadow-md border border-pink-400/30 flex-1">
+                    👟 Squeak [E]
+                </button>
+            </div>
+
+            <div class="bg-slate-900/80 backdrop-blur-md px-5 py-2.5 rounded-full border border-slate-700 text-xs sm:text-sm text-slate-200 font-bold shadow-lg pointer-events-auto flex flex-wrap justify-center gap-3 sm:gap-6 text-center">
+                <span><kbd class="bg-purple-800 px-1.5 py-0.5 rounded text-white">W A S D</kbd> / <kbd class="bg-purple-800 px-1.5 py-0.5 rounded text-white">Arrows</kbd> Walk View-Relative</span>
+                <span class="text-cyan-400">🖱️ Drag Screen to Orbit Camera</span>
+                <span class="text-yellow-400"><kbd class="bg-yellow-700 px-1.5 py-0.5 rounded text-white">[SPACE]</kbd> Confetti</span>
+                <span class="text-orange-400"><kbd class="bg-orange-700 px-1.5 py-0.5 rounded text-white">[SHIFT]</kbd> Flop</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Start Screen Overlay -->
+    <div id="start-screen" class="ui-layer pointer-events-auto flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4">
+        <div class="bg-slate-900 text-white p-6 sm:p-8 rounded-3xl shadow-2xl max-w-lg w-full text-center border-4 border-purple-500/80">
+            <div class="inline-block bg-purple-600 text-yellow-300 font-black px-4 py-1 rounded-full text-xs comic-font uppercase tracking-widest mb-2 shadow-lg">3D Nuisance Engine</div>
+            <h1 class="comic-font text-5xl sm:text-6xl font-black text-purple-400 tracking-wide drop-shadow-md">Silly Sod:</h1>
+            <h2 class="comic-font text-3xl sm:text-4xl font-black text-red-500 mb-4 drop-shadow-md">Public Nuisance 3D</h2>
+            
+            <p class="text-slate-300 mb-4 text-sm sm:text-base leading-relaxed">
+                You are Arthur. You wear a cozy sweater vest and derive pure joy from awkward public behavior.
+            </p>
+            
+            <div class="text-slate-300 mb-6 text-xs sm:text-sm text-left bg-slate-800/80 p-4 rounded-2xl border border-slate-700 space-y-2">
+                <p>🕹️ <strong>Controls:</strong> <span class="text-purple-300 font-bold">WASD or Arrow Keys to move in 8 directions! Arthur automatically faces where he walks.</span></p>
+                <p>🎉 <strong>Spacebar / Button:</strong> Throw pocket confetti & wave wildly.</p>
+                <p>🥔 <strong>Left Shift / Button:</strong> Ragdoll collapse like a sack of potatoes.</p>
+                <p>👟 <strong>E Key / Button:</strong> Honk your squeaky shoes violently.</p>
+                <p>🚨 <strong>Beware Security:</strong> Avoid the blue guards with red visual search cones!</p>
+            </div>
+
+            <button id="start-btn" class="btn pointer-events-auto bg-purple-600 hover:bg-purple-500 text-yellow-300 font-black py-4 px-8 rounded-2xl text-2xl shadow-[0_6px_0_#581c87] w-full comic-font tracking-wider transform transition hover:-translate-y-0.5">
+                ENTER SUPERMARKET 🛒
+            </button>
+        </div>
+    </div>
+
+    <!-- Game Over Screen Overlay -->
+    <div id="game-over-screen" class="ui-layer hidden pointer-events-auto flex items-center justify-center bg-slate-950/90 backdrop-blur-lg p-4">
+        <div class="bg-slate-900 text-white p-8 rounded-3xl shadow-2xl max-w-md w-full text-center border-4 border-red-500">
+            <div class="text-6xl mb-2">🙈</div>
+            <h1 class="comic-font text-5xl font-black text-red-500 mb-2">MORTIFIED!</h1>
+            <p class="text-slate-300 mb-4 text-sm sm:text-base" id="game-over-msg">
+                Arthur couldn't handle the social glare and fled into the parking lot.
+            </p>
+            <div class="bg-purple-950/60 border border-purple-500/40 p-4 rounded-2xl mb-6">
+                <p class="text-purple-300 text-xs font-bold uppercase tracking-wider">Total Cringe Delivered</p>
+                <p class="comic-font text-5xl font-black text-yellow-400 mt-1" id="final-score">0</p>
+            </div>
+
+            <button id="restart-btn" class="btn pointer-events-auto bg-red-600 hover:bg-red-500 text-white font-black py-4 px-8 rounded-2xl text-xl shadow-[0_6px_0_#991b1b] w-full comic-font tracking-wider">
+                TRY AGAIN 🔄
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const keys = {};
+        let touchActions = { confetti: false, flop: false, squeak: false };
+
+        // Camera Orbit Controls State
+        let camYaw = 0; // 0 = Camera positioned South looking North (-Z)
+        let camPitch = 0.65; // Camera elevation pitch angle
+        let camDistance = 16;
+        let isDragging = false;
+        let previousMousePosition = { x: 0, y: 0 };
+
+        window.addEventListener('pointerdown', (e) => {
+            if (e.target.closest('.pointer-events-auto')) return;
+            isDragging = true;
+            previousMousePosition = { x: e.clientX, y: e.clientY };
+        });
+
+        window.addEventListener('pointermove', (e) => {
+            if (!isDragging) return;
+            const deltaX = e.clientX - previousMousePosition.x;
+            const deltaY = e.clientY - previousMousePosition.y;
+
+            camYaw -= deltaX * 0.005;
+            camPitch += deltaY * 0.003;
+            camPitch = Math.max(0.2, Math.min(Math.PI / 2.2, camPitch));
+
+            previousMousePosition = { x: e.clientX, y: e.clientY };
+        });
+
+        window.addEventListener('pointerup', () => { isDragging = false; });
+        window.addEventListener('pointercancel', () => { isDragging = false; });
+
+        window.addEventListener('keydown', (e) => {
+            sounds.init();
+            keys[e.code] = true;
+            if (e.key) keys[e.key.toLowerCase()] = true;
+
+            if (["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "KeyW", "KeyA", "KeyS", "KeyD"].includes(e.code)) {
+                e.preventDefault();
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            keys[e.code] = false;
+            if (e.key) keys[e.key.toLowerCase()] = false;
+        });
+
+        // Touch Button bindings
+        function setupTouchButtons() {
+            const bindBtn = (id, action) => {
+                const btn = document.getElementById(id);
+                if (!btn) return;
+                btn.addEventListener('pointerdown', (e) => {
+                    e.preventDefault();
+                    sounds.init();
+                    touchActions[action] = true;
+                });
+                btn.addEventListener('pointerup', (e) => {
+                    e.preventDefault();
+                    touchActions[action] = false;
+                });
+                btn.addEventListener('pointerleave', () => {
+                    touchActions[action] = false;
+                });
+            };
+            bindBtn('btn-confetti', 'confetti');
+            bindBtn('btn-flop', 'flop');
+            bindBtn('btn-squeak', 'squeak');
+        }
+
+        class SoundEngine {
+            constructor() {
+                this.ctx = null;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            // High pitched squeaky shoe step
+            playSqueak() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                
+                osc.type = 'sine';
+                const freq = 1200 + Math.random() * 800;
+                osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(freq * 1.5, this.ctx.currentTime + 0.08);
+
+                gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.09);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.1);
+            }
+
+            // Kazoo fanfare for pocket confetti
+            playKazoo() {
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                [400, 600, 800, 1000].forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(freq + (Math.random()*100 - 50), now + idx * 0.04);
+                    gain.gain.setValueAtTime(0.08, now + idx * 0.04);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.04 + 0.15);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now + idx * 0.04);
+                    osc.stop(now + idx * 0.04 + 0.16);
+                });
+            }
+
+            // Low thud when flopping on floor
+            playThud() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(30, this.ctx.currentTime + 0.2);
+
+                gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.22);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.25);
+            }
+
+            // Cheerful chime when gaining cringe score
+            playChime() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(523.25, this.ctx.currentTime); // C5
+                osc.frequency.exponentialRampToValueAtTime(1046.50, this.ctx.currentTime + 0.15); // C6
+
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.2);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.22);
+            }
+
+            // Security alert synth blare
+            playAlert() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(800, this.ctx.currentTime);
+                osc.frequency.setValueAtTime(400, this.ctx.currentTime + 0.08);
+
+                gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.16);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.18);
+            }
+        }
+
+        const sounds = new SoundEngine();
+
+        let scene, camera, renderer;
+        let playerGroup, playerBody, headMesh, leftArm, rightArm, leftLeg, rightLeg;
+        let npcs = [];
+        let shelves = [];
+        let particles = [];
+        let floatingTexts3D = [];
+
+        // Game State Variables
+        let gameState = 'START';
+        let lastTime = 0;
+        let score = 0;
+        let shame = 0;
+        let cringeMeter = 0;
+        const MAX_SHAME = 100;
+        let squeakTimer = 0;
+
+        // DOM Handles
+        const uiLayer = document.getElementById('game-ui');
+        const startScreen = document.getElementById('start-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const scoreDisplay = document.getElementById('score-display');
+        const finalScoreDisplay = document.getElementById('final-score');
+        const cringeBar = document.getElementById('cringe-bar');
+        const shameBar = document.getElementById('shame-bar');
+        const cringeStatus = document.getElementById('cringe-status');
+        const shameStatus = document.getElementById('shame-status');
+        const multiplierBadge = document.getElementById('multiplier-badge');
+
+        function createCheckerboardTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256; canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#e2e8f0'; ctx.fillRect(0,0,256,256);
+            ctx.fillStyle = '#cbd5e1';
+            ctx.fillRect(0,0,128,128); ctx.fillRect(128,128,128,128);
+            ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 4;
+            ctx.strokeRect(0,0,256,256);
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(20, 20);
+            return texture;
+        }
+
+        function init3D() {
+            const container = document.getElementById('canvas-container');
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0f172a);
+            scene.fog = new THREE.FogExp2(0x0f172a, 0.018);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            // Lights
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+            scene.add(ambientLight);
+
+            const dirLight = new THREE.DirectionalLight(0xfffaed, 0.8);
+            dirLight.position.set(20, 40, 20);
+            dirLight.castShadow = true;
+            dirLight.shadow.mapSize.width = 1024;
+            dirLight.shadow.mapSize.height = 1024;
+            dirLight.shadow.camera.near = 0.5;
+            dirLight.shadow.camera.far = 100;
+            dirLight.shadow.camera.left = -30;
+            dirLight.shadow.camera.right = 30;
+            dirLight.shadow.camera.top = 30;
+            dirLight.shadow.camera.bottom = -30;
+            scene.add(dirLight);
+
+            // Floor
+            const floorGeo = new THREE.PlaneGeometry(80, 80);
+            const floorMat = new THREE.MeshStandardMaterial({
+                map: createCheckerboardTexture(),
+                roughness: 0.3,
+                metalness: 0.1
+            });
+            const floor = new THREE.Mesh(floorGeo, floorMat);
+            floor.rotation.x = -Math.PI / 2;
+            floor.receiveShadow = true;
+            scene.add(floor);
+
+            // Supermarket Walls
+            const wallMat = new THREE.MeshStandardMaterial({ color: 0x334155 });
+            const backWall = new THREE.Mesh(new THREE.BoxGeometry(80, 10, 1), wallMat);
+            backWall.position.set(0, 5, -40);
+            scene.add(backWall);
+
+            buildArthur();
+            buildSupermarketLayout();
+
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function buildArthur() {
+            playerGroup = new THREE.Group();
+
+            // Root body container
+            playerBody = new THREE.Group();
+            playerGroup.add(playerBody);
+
+            // Torso / Sweater Vest (Purple with Stripes)
+            const vestGeo = new THREE.CylinderGeometry(0.5, 0.45, 1.2, 12);
+            const vestMat = new THREE.MeshStandardMaterial({ color: 0x9333ea, roughness: 0.8 });
+            const vest = new THREE.Mesh(vestGeo, vestMat);
+            vest.position.y = 1.1;
+            vest.castShadow = true;
+            playerBody.add(vest);
+
+            // Head (Skin sphere)
+            const headGeo = new THREE.SphereGeometry(0.45, 16, 16);
+            const headMat = new THREE.MeshStandardMaterial({ color: 0xfde047, roughness: 0.5 });
+            headMesh = new THREE.Mesh(headGeo, headMat);
+            headMesh.position.y = 2.0;
+            headMesh.castShadow = true;
+            playerBody.add(headMesh);
+
+            // Googly Eyes
+            const eyeGeo = new THREE.SphereGeometry(0.12, 8, 8);
+            const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            const pupilMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+
+            const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+            leftEye.position.set(0.18, 2.1, 0.35);
+            const leftPupil = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), pupilMat);
+            leftPupil.position.set(0, 0, 0.08);
+            leftEye.add(leftPupil);
+            playerBody.add(leftEye);
+
+            const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+            rightEye.position.set(-0.18, 2.1, 0.35);
+            const rightPupil = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), pupilMat);
+            rightPupil.position.set(0, 0, 0.08);
+            rightEye.add(rightPupil);
+            playerBody.add(rightEye);
+
+            // Arms
+            const armGeo = new THREE.CylinderGeometry(0.12, 0.1, 0.9, 8);
+            const armMat = new THREE.MeshStandardMaterial({ color: 0xfde047 });
+
+            leftArm = new THREE.Mesh(armGeo, armMat);
+            leftArm.position.set(0.65, 1.3, 0);
+            leftArm.geometry.translate(0, -0.3, 0);
+            leftArm.castShadow = true;
+            playerBody.add(leftArm);
+
+            rightArm = new THREE.Mesh(armGeo, armMat);
+            rightArm.position.set(-0.65, 1.3, 0);
+            rightArm.geometry.translate(0, -0.3, 0);
+            rightArm.castShadow = true;
+            playerBody.add(rightArm);
+
+            // Legs & Squeaky Shoes
+            const legGeo = new THREE.CylinderGeometry(0.14, 0.12, 0.8, 8);
+            const legMat = new THREE.MeshStandardMaterial({ color: 0x1e293b });
+
+            leftLeg = new THREE.Mesh(legGeo, legMat);
+            leftLeg.position.set(0.25, 0.4, 0);
+            leftLeg.geometry.translate(0, -0.2, 0);
+            leftLeg.castShadow = true;
+            playerBody.add(leftLeg);
+
+            rightLeg = new THREE.Mesh(legGeo, legMat);
+            rightLeg.position.set(-0.25, 0.4, 0);
+            rightLeg.geometry.translate(0, -0.2, 0);
+            rightLeg.castShadow = true;
+            playerBody.add(rightLeg);
+
+            // Giant Squeaky Shoes
+            const shoeGeo = new THREE.BoxGeometry(0.28, 0.2, 0.5);
+            const shoeMat = new THREE.MeshStandardMaterial({ color: 0xef4444 });
+            const leftShoe = new THREE.Mesh(shoeGeo, shoeMat);
+            leftShoe.position.set(0, -0.4, 0.1);
+            leftLeg.add(leftShoe);
+
+            const rightShoe = new THREE.Mesh(shoeGeo, shoeMat);
+            rightShoe.position.set(0, -0.4, 0.1);
+            rightLeg.add(rightShoe);
+
+            scene.add(playerGroup);
+        }
+
+        function buildSupermarketLayout() {
+            shelves.forEach(s => scene.remove(s.mesh));
+            shelves = [];
+
+            const shelfMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.4 });
+            const boxColors = [0xef4444, 0x3b82f6, 0x10b981, 0xf59e0b, 0xec4899];
+
+            // Create Aisles
+            for (let x = -25; x <= 25; x += 15) {
+                for (let z = -20; z <= 20; z += 20) {
+                    const group = new THREE.Group();
+                    const mainShelf = new THREE.Mesh(new THREE.BoxGeometry(4, 3.5, 12), shelfMat);
+                    mainShelf.position.y = 1.75;
+                    mainShelf.castShadow = true;
+                    mainShelf.receiveShadow = true;
+                    group.add(mainShelf);
+
+                    // Add colorful box products on shelves
+                    for (let bx = -1.5; bx <= 1.5; bx += 1.0) {
+                        for (let bz = -5; bz <= 5; bz += 2) {
+                            const boxMat = new THREE.MeshStandardMaterial({
+                                color: boxColors[Math.floor(Math.random() * boxColors.length)]
+                            });
+                            const box = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), boxMat);
+                            box.position.set(bx, 3.8, bz);
+                            box.castShadow = true;
+                            group.add(box);
+                        }
+                    }
+
+                    group.position.set(x, 0, z);
+                    scene.add(group);
+                    shelves.push({ x: x, z: z, radius: 4.5, mesh: group });
+                }
+            }
+
+            // Spawn NPCs
+            spawnNPCs();
+        }
+
+        class NPC3D {
+            constructor(x, z, isSecurity = false) {
+                this.x = x;
+                this.z = z;
+                this.isSecurity = isSecurity;
+                this.speed = isSecurity ? 3.5 : 2.0 + Math.random() * 1.5;
+                this.angle = Math.random() * Math.PI * 2;
+                this.state = 'WANDER';
+                this.timer = 0;
+                this.bubbleTimer = 0;
+
+                this.mesh = new THREE.Group();
+
+                // Body
+                const bodyColor = isSecurity ? 0x1e3a8a : (Math.floor(Math.random() * 0xffffff));
+                const bodyMat = new THREE.MeshStandardMaterial({ color: bodyColor, roughness: 0.6 });
+                const body = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.4, 1.2, 10), bodyMat);
+                body.position.y = 1.1;
+                body.castShadow = true;
+                this.mesh.add(body);
+
+                // Head
+                const headMat = new THREE.MeshStandardMaterial({ color: 0xfcd34d });
+                const head = new THREE.Mesh(new THREE.SphereGeometry(0.4, 12, 12), headMat);
+                head.position.y = 1.95;
+                head.castShadow = true;
+                this.mesh.add(head);
+
+                // Reaction Bubble Sprite
+                const bubbleCanvas = document.createElement('canvas');
+                bubbleCanvas.width = 128; bubbleCanvas.height = 128;
+                this.bubbleCtx = bubbleCanvas.getContext('2d');
+                this.bubbleTexture = new THREE.CanvasTexture(bubbleCanvas);
+                const bubbleMat = new THREE.SpriteMaterial({ map: this.bubbleTexture, transparent: true });
+                this.bubbleSprite = new THREE.Sprite(bubbleMat);
+                this.bubbleSprite.position.set(0, 3.0, 0);
+                this.bubbleSprite.scale.set(1.5, 1.5, 1);
+                this.bubbleSprite.visible = false;
+                this.mesh.add(this.bubbleSprite);
+
+                if (isSecurity) {
+                    // Security Hat
+                    const hatMat = new THREE.MeshStandardMaterial({ color: 0x0f172a });
+                    const hat = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.45, 0.25, 10), hatMat);
+                    hat.position.y = 2.35;
+                    this.mesh.add(hat);
+
+                    // Red Vision Cone
+                    const coneGeo = new THREE.ConeGeometry(3.5, 8, 16);
+                    coneGeo.rotateX(-Math.PI / 2);
+                    coneGeo.translate(0, 0, 4);
+                    const coneMat = new THREE.MeshBasicMaterial({
+                        color: 0xef4444,
+                        transparent: true,
+                        opacity: 0.25
+                    });
+                    this.visionCone = new THREE.Mesh(coneGeo, coneMat);
+                    this.visionCone.position.y = 0.1;
+                    this.mesh.add(this.visionCone);
+                }
+
+                this.mesh.position.set(x, 0, z);
+                scene.add(this.mesh);
+            }
+
+            showReaction(emoji) {
+                if (this.bubbleTimer > 0) return;
+                this.bubbleTimer = 1.2;
+                this.bubbleSprite.visible = true;
+                
+                const ctx = this.bubbleCtx;
+                ctx.clearRect(0, 0, 128, 128);
+                ctx.fillStyle = 'white';
+                ctx.beginPath();
+                ctx.arc(64, 64, 50, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#334155';
+                ctx.lineWidth = 6;
+                ctx.stroke();
+
+                ctx.font = '54px serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(emoji, 64, 64);
+                this.bubbleTexture.needsUpdate = true;
+            }
+
+            update(dt) {
+                this.timer -= dt;
+                if (this.bubbleTimer > 0) {
+                    this.bubbleTimer -= dt;
+                    if (this.bubbleTimer <= 0) this.bubbleSprite.visible = false;
+                }
+
+                if (this.state === 'WANDER') {
+                    if (this.timer <= 0) {
+                        this.angle = Math.random() * Math.PI * 2;
+                        this.timer = 2 + Math.random() * 4;
+                    }
+
+                    const dx = Math.sin(this.angle) * this.speed * dt;
+                    const dz = Math.cos(this.angle) * this.speed * dt;
+
+                    let nextX = this.x + dx;
+                    let nextZ = this.z + dz;
+
+                    if (Math.abs(nextX) > 35) { this.angle += Math.PI; nextX = this.x; }
+                    if (Math.abs(nextZ) > 35) { this.angle += Math.PI; nextZ = this.z; }
+
+                    for (let s of shelves) {
+                        if (Math.hypot(nextX - s.x, nextZ - s.z) < s.radius) {
+                            this.angle += Math.PI * 0.7;
+                            nextX = this.x;
+                            nextZ = this.z;
+                            break;
+                        }
+                    }
+
+                    this.x = nextX;
+                    this.z = nextZ;
+                    this.mesh.position.set(this.x, 0, this.z);
+                    this.mesh.rotation.y = this.angle;
+                }
+            }
+
+            canSeePlayer(pX, pZ) {
+                const dist = Math.hypot(pX - this.x, pZ - this.z);
+                const maxRange = this.isSecurity ? 12 : 7;
+                if (dist > maxRange) return false;
+
+                const angleToPlayer = Math.atan2(pX - this.x, pZ - this.z);
+                let diff = Math.abs(angleToPlayer - this.angle);
+                if (diff > Math.PI) diff = (Math.PI * 2) - diff;
+
+                return diff < (Math.PI / 3);
+            }
+
+            destroy() {
+                scene.remove(this.mesh);
+            }
+        }
+
+        function spawnNPCs() {
+            npcs.forEach(n => n.destroy());
+            npcs = [];
+
+            for (let i = 0; i < 12; i++) {
+                const isSec = (i % 4 === 0);
+                const rx = (Math.random() - 0.5) * 60;
+                const rz = (Math.random() - 0.5) * 60;
+                npcs.push(new NPC3D(rx, rz, isSec));
+            }
+        }
+
+        function spawnConfetti(x, z) {
+            sounds.playKazoo();
+            const colors = [0xec4899, 0xa855f7, 0xef4444, 0xeab308, 0x3b82f6];
+            for (let i = 0; i < 30; i++) {
+                const pGeo = new THREE.PlaneGeometry(0.15, 0.15);
+                const pMat = new THREE.MeshBasicMaterial({
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    side: THREE.DoubleSide
+                });
+                const p = new THREE.Mesh(pGeo, pMat);
+                p.position.set(x + (Math.random() - 0.5), 2.2, z + (Math.random() - 0.5));
+                p.vx = (Math.random() - 0.5) * 6;
+                p.vy = 4 + Math.random() * 4;
+                p.vz = (Math.random() - 0.5) * 6;
+                p.life = 1.0;
+                scene.add(p);
+                particles.push(p);
+            }
+        }
+
+        function createFloatingText3D(text, x, z, colorStr = '#a855f7') {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256; canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = colorStr;
+            ctx.font = 'bold 36px "Comic Neue", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(text, 128, 45);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true });
+            const sprite = new THREE.Sprite(spriteMat);
+            sprite.position.set(x, 3.2, z);
+            sprite.scale.set(3, 0.75, 1);
+            sprite.life = 1.2;
+            scene.add(sprite);
+            floatingTexts3D.push(sprite);
+        }
+
+        let walkCycle = 0;
+        let isRagdoll = false;
+
+        function updateGame(dt) {
+            if (gameState !== 'PLAYING') return;
+
+            let inputX = 0; // -1 = Left (A), +1 = Right (D)
+            let inputZ = 0; // -1 = Forward/Up (W), +1 = Backward/Down (S)
+
+            if (keys['KeyW'] || keys['ArrowUp'] || keys['w']) inputZ -= 1;
+            if (keys['KeyS'] || keys['ArrowDown'] || keys['s']) inputZ += 1;
+            if (keys['KeyA'] || keys['ArrowLeft'] || keys['a']) inputX -= 1;
+            if (keys['KeyD'] || keys['ArrowRight'] || keys['d']) inputX += 1;
+
+            // Transform WASD inputs relative to camera yaw angle
+            let moveX = 0;
+            let moveZ = 0;
+
+            if (inputX !== 0 || inputZ !== 0) {
+                const sin = Math.sin(camYaw);
+                const cos = Math.cos(camYaw);
+                moveX = inputX * cos - inputZ * sin;
+                moveZ = inputX * sin + inputZ * cos;
+            }
+
+            const isFlotState = keys['ShiftLeft'] || keys['ShiftRight'] || keys['shift'] || touchActions.flop;
+            const isWaving = (keys['Space'] || keys[' '] || touchActions.confetti) && !isFlotState;
+            const isSqueaking = keys['KeyE'] || keys['e'] || touchActions.squeak;
+
+            // Handle Ragdoll Transition
+            if (isFlotState && !isRagdoll) {
+                isRagdoll = true;
+                sounds.playThud();
+                playerBody.rotation.x = Math.PI / 2;
+                playerBody.position.y = 0.3;
+                createFloatingText3D("FLOP!", playerGroup.position.x, playerGroup.position.z, '#f97316');
+            } else if (!isFlotState && isRagdoll) {
+                isRagdoll = false;
+                playerBody.rotation.x = 0;
+                playerBody.position.y = 0;
+            }
+
+            // Squeaky shoes trigger
+            if (isSqueaking) {
+                squeakTimer -= dt;
+                if (squeakTimer <= 0) {
+                    sounds.playSqueak();
+                    squeakTimer = 0.15;
+                    cringeMeter += 3;
+                    createFloatingText3D("SQUEAK!", playerGroup.position.x, playerGroup.position.z, '#ec4899');
+                }
+            }
+
+            // Waving Confetti action
+            if (isWaving && Math.random() < 0.1) {
+                spawnConfetti(playerGroup.position.x, playerGroup.position.z);
+            }
+
+            // Move & Rotate Arthur relative to camera direction
+            const isMoving = (moveX !== 0 || moveZ !== 0) && !isRagdoll;
+
+            if (isMoving) {
+                // Normalize directional vector for smooth diagonal speed
+                const length = Math.hypot(moveX, moveZ);
+                const dirX = moveX / length;
+                const dirZ = moveZ / length;
+
+                // Rotate player towards movement vector
+                const targetAngle = Math.atan2(dirX, dirZ);
+                let diff = targetAngle - playerGroup.rotation.y;
+                while (diff < -Math.PI) diff += Math.PI * 2;
+                while (diff > Math.PI) diff -= Math.PI * 2;
+                playerGroup.rotation.y += diff * 12 * dt;
+
+                // Move position
+                const moveSpeed = 8.5;
+                let nextX = playerGroup.position.x + dirX * moveSpeed * dt;
+                let nextZ = playerGroup.position.z + dirZ * moveSpeed * dt;
+
+                // Check shelf collisions with sliding wall reaction
+                for (let s of shelves) {
+                    const dist = Math.hypot(nextX - s.x, nextZ - s.z);
+                    const minDist = s.radius + 0.6;
+                    if (dist < minDist) {
+                        // Push out of collision
+                        const overlapAngle = Math.atan2(nextX - s.x, nextZ - s.z);
+                        nextX = s.x + Math.sin(overlapAngle) * minDist;
+                        nextZ = s.z + Math.cos(overlapAngle) * minDist;
+                    }
+                }
+
+                // Supermarket Outer Boundary Clamp
+                playerGroup.position.x = THREE.MathUtils.clamp(nextX, -36, 36);
+                playerGroup.position.z = THREE.MathUtils.clamp(nextZ, -36, 36);
+
+                // Leg Swing Animation & Shoe Squeaks
+                walkCycle += dt * 14;
+                leftLeg.rotation.x = Math.sin(walkCycle) * 0.75;
+                rightLeg.rotation.x = -Math.sin(walkCycle) * 0.75;
+
+                squeakTimer -= dt;
+                if (squeakTimer <= 0) {
+                    sounds.playSqueak();
+                    squeakTimer = 0.32;
+                }
+            } else if (!isRagdoll) {
+                leftLeg.rotation.x = 0;
+                rightLeg.rotation.x = 0;
+            }
+
+            // Waving animation override
+            if (isWaving && !isRagdoll) {
+                leftArm.rotation.z = Math.PI - Math.sin(Date.now() * 0.02) * 0.5;
+                rightArm.rotation.z = -Math.PI + Math.sin(Date.now() * 0.02) * 0.5;
+            } else {
+                leftArm.rotation.z = 0;
+                rightArm.rotation.z = 0;
+            }
+
+            const camX = playerGroup.position.x + camDistance * Math.sin(camYaw) * Math.cos(camPitch);
+            const camY = playerGroup.position.y + camDistance * Math.sin(camPitch);
+            const camZ = playerGroup.position.z + camDistance * Math.cos(camYaw) * Math.cos(camPitch);
+
+            const targetCamPos = new THREE.Vector3(camX, camY, camZ);
+            camera.position.lerp(targetCamPos, 0.15);
+            camera.lookAt(playerGroup.position.x, playerGroup.position.y + 1.2, playerGroup.position.z);
+
+            // Update NPCs & Interaction Gauges
+            let cringeGained = 0;
+            let shameGained = 0;
+            let currentStatus = "Walking around...";
+            let alertTriggered = false;
+
+            npcs.forEach(npc => {
+                npc.update(dt);
+                const seen = npc.canSeePlayer(playerGroup.position.x, playerGroup.position.z);
+                const d = Math.hypot(playerGroup.position.x - npc.x, playerGroup.position.z - npc.z);
+
+                if (isRagdoll && d < 8) {
+                    currentStatus = "FLOPPED ON FLOOR!";
+                    if (seen) {
+                        shameGained += dt * (npc.isSecurity ? 45 : 15);
+                        cringeGained += dt * 15;
+                        npc.showReaction(npc.isSecurity ? '🚨' : '😳');
+                        if (npc.isSecurity) alertTriggered = true;
+                    } else {
+                        cringeGained += dt * 25;
+                    }
+                } else if (isWaving && d < 10) {
+                    currentStatus = "AGGRESSIVE WAVING!";
+                    if (seen) {
+                        shameGained += dt * 20;
+                        npc.showReaction('❓');
+                    } else {
+                        cringeGained += dt * 20;
+                    }
+                } else if (!isRagdoll && d < 3.5) {
+                    currentStatus = "TAILGATING SHOPPER!";
+                    cringeGained += dt * 30;
+                    if (seen) npc.showReaction('💢');
+                }
+            });
+
+            if (alertTriggered && Math.random() < 0.1) {
+                sounds.playAlert();
+            }
+
+            // Natural Shame decay
+            if (shameGained === 0) {
+                shame = Math.max(0, shame - dt * 4);
+            } else {
+                shame += shameGained;
+            }
+
+            // Cringe Meter Filling
+            if (cringeGained > 0) {
+                cringeMeter += cringeGained * 12 * dt;
+                if (cringeMeter >= 100) {
+                    cringeMeter = 0;
+                    score += 100;
+                    sounds.playChime();
+                    scoreDisplay.innerText = score;
+                    createFloatingText3D("+100 CRINGE!", playerGroup.position.x, playerGroup.position.z, '#eab308');
+                }
+            }
+
+            // UI Bar Updates
+            cringeBar.value = cringeMeter;
+            shameBar.value = shame;
+            cringeStatus.innerText = currentStatus;
+
+            if (shame > 60) {
+                shameStatus.innerText = "WARNING: Heavy Staring!";
+                shameStatus.className = "text-xs text-red-400 font-black animate-bounce";
+            } else if (shame > 0) {
+                shameStatus.innerText = "People are turning around...";
+                shameStatus.className = "text-xs text-yellow-400 italic";
+            } else {
+                shameStatus.innerText = "Nobody is watching";
+                shameStatus.className = "text-xs text-slate-400 italic";
+            }
+
+            // Update Particles
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.position.x += p.vx * dt;
+                p.position.y += p.vy * dt;
+                p.position.z += p.vz * dt;
+                p.vy -= 9.8 * dt;
+                p.life -= dt;
+                if (p.life <= 0 || p.position.y <= 0) {
+                    scene.remove(p);
+                    particles.splice(i, 1);
+                }
+            }
+
+            // Update Floating 3D Text
+            for (let i = floatingTexts3D.length - 1; i >= 0; i--) {
+                const ft = floatingTexts3D[i];
+                ft.position.y += dt * 1.5;
+                ft.life -= dt;
+                if (ft.life <= 0) {
+                    scene.remove(ft);
+                    floatingTexts3D.splice(i, 1);
+                }
+            }
+
+            // Check Defeat State
+            if (shame >= MAX_SHAME) {
+                triggerGameOver();
+            }
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate(timestamp) {
+            requestAnimationFrame(animate);
+
+            if (!lastTime) lastTime = timestamp;
+            const dt = Math.min((timestamp - lastTime) / 1000, 0.1);
+            lastTime = timestamp;
+
+            updateGame(dt);
+            renderer.render(scene, camera);
+        }
+
+        function startGame() {
+            sounds.init();
+            score = 0;
+            shame = 0;
+            cringeMeter = 0;
+            scoreDisplay.innerText = '0';
+            playerGroup.position.set(0, 0, 0);
+            playerGroup.rotation.set(0, 0, 0);
+
+            startScreen.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+            uiLayer.classList.remove('hidden');
+
+            gameState = 'PLAYING';
+            lastTime = performance.now();
+        }
+
+        function triggerGameOver() {
+            gameState = 'GAMEOVER';
+            uiLayer.classList.add('hidden');
+            gameOverScreen.classList.remove('hidden');
+            finalScoreDisplay.innerText = score;
+
+            const msg = document.getElementById('game-over-msg');
+            if (score === 0) msg.innerText = "Arthur panicked before even doing anything silly!";
+            else if (score < 500) msg.innerText = "Security trapped Arthur in aisle 4 and marched him away.";
+            else if (score < 1500) msg.innerText = "A magnificent display of public awkwardness!";
+            else msg.innerText = "LEGENDARY SOD! You broke the supermarket's sanity threshold!";
+        }
+
+        init3D();
+        setupTouchButtons();
+        animate(0);
+
+        // Buttons
+        document.getElementById('start-btn').addEventListener('click', startGame);
+        document.getElementById('restart-btn').addEventListener('click', startGame);
+
+    </script>
+</body>
+</html>
